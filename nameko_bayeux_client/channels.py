@@ -8,6 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 class Channel:
+    """
+    Bayeux channel base class
+
+    The API consists of two main methods - compose and handle.
+
+    Only long-polling connection type is supported by this implementation.
+
+    """
 
     name = NotImplemented
 
@@ -34,10 +42,19 @@ class Channel:
 
 
 class Handshake(Channel):
+    """
+    Handshake channel for connection negotiation
+
+    A client SHOULD NOT send any other message in the request with
+    a handshake message. A server MUST ignore any other message sent
+    in the same request as a handshake message.
+
+    """
 
     name = '/meta/handshake'
 
     def compose(self):
+        """ Compose a handshake request message """
         return dict(
             id=self.client.get_next_message_id(),
             channel=self.name,
@@ -47,6 +64,14 @@ class Handshake(Channel):
         )
 
     def handle(self, message):
+        """
+        Handle handshake response message
+
+        Does not support renegotiating - expects the client ID to be sent
+        back with the first handshake response. Ignores advices on handshake
+        level.
+
+        """
         if not message['successful']:
             raise BayeuxError(
                 'Unsuccessful handshake response: {}'
@@ -57,13 +82,24 @@ class Handshake(Channel):
 
 
 class Connect(Channel):
+    """
+    Connect channel
+
+    After a Bayeux client has discovered the server’s capabilities with
+    a handshake exchange, a connection is established by sending a message
+    to the /meta/connect channel. A client MAY send other messages in the same
+    HTTP request with a connection message.
+
+    """
 
     name = '/meta/connect'
 
     def compose(self):
+        """ Compose a connection request message """
         return super().compose(connectionType='long-polling')
 
     def handle(self, message):
+        """ Handle connection response message """
 
         self._set_timeout(message)
         self._set_interval(message)
@@ -94,10 +130,19 @@ class Connect(Channel):
 
 
 class Disconnect(Channel):
+    """
+    Disconnect channel
+
+    When a connected client wishes to cease operation it should send
+    a request to the /meta/disconnect channel for the server to remove
+    any client-related state.
+
+    """
 
     name = '/meta/disconnect'
 
     def handle(self, message):
+        """ Handle disconnect response message """
         if not message['successful']:
             raise BayeuxError(
                 'Unsuccessful disconnect response: {}'
@@ -105,6 +150,17 @@ class Disconnect(Channel):
 
 
 class Subscribe(Channel):
+    """
+    Subscribe channel
+
+    A connected Bayeux client may send subscribe messages to register
+    interest in a channel and to request that messages published to that
+    channel are delivered to itself. A Bayeux server MUST respond to
+    a subscribe response message. A Bayeux server MAY send event messages
+    for the client in the same HTTP response as the subscribe response,
+    including events for the channels just subscribed to.
+
+    """
 
     name = '/meta/subscribe'
 
@@ -121,13 +177,27 @@ class Subscribe(Channel):
 
 
 class Unsubscribe(Channel):
+    """
+    Unsubscribe channel
+
+    A connected Bayeux client may send unsubscribe messages to cancel interest
+    in a channel and to request that messages published to that channel are
+    not delivered to itself. A Bayeux server MUST respond an unsubscribe
+    response message. A Bayeux server MAY send event messages for the client
+    in the same HTTP response as the unsubscribe response, including events
+    for the channels just unsubscribed to as long as the event was processed
+    before the unsubscribe request.
+
+    """
 
     name = '/meta/unsubscribe'
 
     def compose(self, channel_name):
+        """ Compose an unsubscribe request message """
         return super().compose(subscription=channel_name)
 
     def handle(self, message):
+        """ Handle unsubscribe response message """
         if not message['successful']:
             raise BayeuxError(
                 'Unsuccessful unsubscribe response: {}'
@@ -135,6 +205,14 @@ class Unsubscribe(Channel):
 
 
 class Event(Channel):
+    """
+    Event channel
+
+    Application events are published in event messages sent from a Bayeux
+    client to a Bayeux server and are delivered in event messages sent from
+    a Bayeux server to a Bayeux client.
+
+    """
 
     def __init__(self, client, channel_name):
         self.client = client
@@ -142,11 +220,20 @@ class Event(Channel):
         self.callbacks = set()
 
     def register_callback(self, callback):
+        """
+        Register a callback to be called when handling the event
+
+        An event can have multiple callbacks. Each callback is handled
+        by a separate worker.
+
+        """
         self.callbacks.add(callback)
 
     def compose(self, data):
+        """ Compose an event message to be published """
         return super().compose(data=data)
 
     def handle(self, message):
+        """ Handle delivered event message """
         for callback in self.callbacks:
             callback(message['data'])
