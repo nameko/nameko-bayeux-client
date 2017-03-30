@@ -1,6 +1,7 @@
 import json
 import socket
 
+from eventlet import sleep
 from eventlet.event import Event
 from mock import call, Mock
 from nameko.web.handlers import http
@@ -171,6 +172,7 @@ def cometd_server(
                 return 200, json.dumps(responses.pop(0))
             except IndexError:
                 waiter.send()
+                sleep(0.1)
                 return (
                     200,
                     json.dumps([message_maker.make_connect_response()]))
@@ -353,7 +355,7 @@ def test_multiple_subscriptions(message_maker, run_services, tracker):
         ],
         # no event to deliver within server timeout
         [message_maker.make_connect_response()],
-        # one event to deliver
+        # another two events to deliver
         [
             message_maker.make_event_delivery_message(
                 channel='/topic/example-a', data={'spam': 'three'}),
