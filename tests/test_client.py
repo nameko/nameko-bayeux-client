@@ -1,6 +1,5 @@
 import json
 import socket
-#from unittest import TestCase
 
 from eventlet import sleep
 from eventlet.event import Event
@@ -167,7 +166,6 @@ def cometd_server(
 
         @http('POST', "/cometd")
         def handle(self, request):
-            import ipdb; ipdb.set_trace()  # FIXME
             tracker.request(
                 json.loads(request.get_data().decode(encoding='UTF-8')))
             try:
@@ -187,16 +185,40 @@ def cometd_server(
 
 
 @pytest.fixture
-def stack(cometd_server, responses, service, waiter):
-    cometd_server.start()
-    service.start()
-    waiter.wait()
-    yield
-    service.kill()
-    cometd_server.stop()
+def run_services(container_factory, config, cometd_server, responses, waiter):
+    """ Returns services runner
+    """
+
+    def _run(service_class, extra_responses):
+        """
+        Run testing cometd server and example service with tested entrypoints
+
+        Before run, the testing cometd server is preloaded with passed
+        responses.
+
+        """
+
+        responses.extend(extra_responses)
+
+        container = container_factory(service_class, config)
+
+        cometd_server.start()
+        container.start()
+
+        waiter.wait()
+
+        container.kill()
+        cometd_server.stop()
+
+    return _run
 
 
-class TestBasicCommunication:
+@pytest.fixture
+def responses():
+    return []
+
+
+def test_basic_communication(message_maker, run_services, tracker):
     """
     Test basic communication
 
@@ -206,92 +228,80 @@ class TestBasicCommunication:
 
     """
 
-    @pytest.fixture
-    def service(self, config, container_factory, tracker):
+    class Service:
 
-        class Service:
+        name = 'example-service'
 
-            name = 'example-service'
+        @subscribe('/topic/example-a')
+        def handle_event_a(self, channel, payload):
+            tracker.handle_event_a(channel, payload)
 
-            @subscribe('/topic/example-a')
-            def handle_event_a(self, channel, payload):
-                tracker.handle_event_a(channel, payload)
+        @subscribe('/topic/example-b')
+        def handle_event_b(self, channel, payload):
+            tracker.handle_event_b(channel, payload)
 
-            @subscribe('/topic/example-b')
-            def handle_event_b(self, channel, payload):
-                tracker.handle_event_b(channel, payload)
+    responses = [
+        # respond to handshake
+        [message_maker.make_handshake_response()],
+        # respond to subscribe
+        [
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-a'),
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-b'),
+        ],
+        # respond to initial connect
+        [
+            message_maker.make_connect_response(
+                advice={'reconnect': Reconnection.retry.value}),
+        ],
+        # two events to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'one'}),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-b', data={'spam': 'two'}),
+        ],
+        # no event to deliver within server timeout
+        [message_maker.make_connect_response()],
+        # one event to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'three'})
+        ],
+    ]
 
-        container = container_factory(Service, config)
+    run_services(Service, responses)
 
-        return container
+    handshake, subscriptions = tracker.request.call_args_list[:2]
+    connect = tracker.request.call_args_list[2:]
 
-    @pytest.fixture
-    def responses(self, message_maker):
-        responses = [
-            # respond to handshake
-            [message_maker.make_handshake_response()],
-            # respond to subscribe
-            [
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-a'),
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-b'),
-            ],
-            # respond to initial connect
-            [
-                message_maker.make_connect_response(
-                    advice={'reconnect': Reconnection.retry.value}),
-            ],
-            # two events to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'one'}),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-b', data={'spam': 'two'}),
-            ],
-            # no event to deliver within server timeout
-            [message_maker.make_connect_response()],
-            # one event to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'three'})
-            ],
-        ]
-        return responses
+    assert handshake == call(
+        [message_maker.make_handshake_request(id=1)])
 
-    def test_basic_communication(self, message_maker, stack, tracker):
+    topics = [
+        message.pop('subscription') for message in subscriptions[0][0]
+    ]
+    assert set(topics) == set(['/topic/example-a', '/topic/example-b'])
 
-        handshake, subscribe = tracker.request.call_args_list[:2]
-        connect = tracker.request.call_args_list[2:]
+    assert connect == [
+        call([message_maker.make_connect_request(id=4)]),
+        call([message_maker.make_connect_request(id=5)]),
+        call([message_maker.make_connect_request(id=6)]),
+        call([message_maker.make_connect_request(id=7)]),
+        call([message_maker.make_connect_request(id=8)]),
+    ]
 
-        assert handshake == call(
-            [message_maker.make_handshake_request(id=1)])
-
-        subscriptions = [
-            message.pop('subscription') for message in subscribe[0][0]
-        ]
-        assert set(subscriptions) == set(
-            ['/topic/example-a', '/topic/example-b']
-        )
-
-        assert connect == [
-            call([message_maker.make_connect_request(id=4)]),
-            call([message_maker.make_connect_request(id=5)]),
-            call([message_maker.make_connect_request(id=6)]),
-            call([message_maker.make_connect_request(id=7)]),
-            call([message_maker.make_connect_request(id=8)]),
-        ]
-
-        assert tracker.handle_event_a.call_args_list == [
-            call('/topic/example-a', {'spam': 'one'}),
-            call('/topic/example-a', {'spam': 'three'}),
-        ]
-        assert tracker.handle_event_b.call_args_list == [
-            call('/topic/example-b', {'spam': 'two'})
-        ]
+    assert tracker.handle_event_a.call_args_list == [
+        call('/topic/example-a', {'spam': 'one'}),
+        call('/topic/example-a', {'spam': 'three'}),
+    ]
+    assert tracker.handle_event_b.call_args_list == [
+        call('/topic/example-b', {'spam': 'two'})
+    ]
 
 
-class TestMultipleSubscriptions:
+def test_multiple_subscriptions(message_maker, run_services, tracker):
     """
     Test multiple subscriptions
 
@@ -304,101 +314,93 @@ class TestMultipleSubscriptions:
 
     """
 
-    @pytest.fixture
-    def service(self, config, container_factory, tracker):
+    class Service:
 
-        class Service:
+        name = 'example_service'
 
-            name = 'example_service'
+        @subscribe('/topic/example-a')
+        @subscribe('/topic/example-c')
+        def handle_a_and_c(self, channel, payload):
+            tracker.handle_a_and_c(channel, payload)
 
-            @subscribe('/topic/example-a')
-            @subscribe('/topic/example-c')
-            def handle_a_and_c(self, channel, payload):
-                tracker.handle_a_and_c(channel, payload)
+        @subscribe('/topic/example-a')
+        @subscribe('/topic/example-b')
+        def handle_a_and_b(self, channel, payload):
+            tracker.handle_a_and_b(channel, payload)
 
-            @subscribe('/topic/example-a')
-            @subscribe('/topic/example-b')
-            def handle_a_and_b(self, channel, payload):
-                tracker.handle_a_and_b(channel, payload)
+    responses = [
+        # respond to handshake
+        [message_maker.make_handshake_response()],
+        # respond to subscribe
+        [
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-a'),
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-b'),
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-c'),
+        ],
+        # respond to initial connect
+        [
+            message_maker.make_connect_response(
+                advice={'reconnect': Reconnection.retry.value}),
+        ],
+        # two events to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'one'}),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-b', data={'spam': 'two'}),
+        ],
+        # no event to deliver within server timeout
+        [message_maker.make_connect_response()],
+        # one event to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'three'}),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-c', data={'spam': 'four'}),
+        ],
+    ]
 
-        container = container_factory(Service, config)
+    run_services(Service, responses)
 
-        return container
+    handshake, subscriptions = tracker.request.call_args_list[:2]
+    connect = tracker.request.call_args_list[2:]
 
-    @pytest.fixture
-    def responses(self, message_maker):
-        responses = [
-            # respond to handshake
-            [message_maker.make_handshake_response()],
-            # respond to subscribe
-            [
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-a'),
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-b'),
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-c'),
-            ],
-            # respond to initial connect
-            [
-                message_maker.make_connect_response(
-                    advice={'reconnect': Reconnection.retry.value}),
-            ],
-            # two events to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'one'}),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-b', data={'spam': 'two'}),
-            ],
-            # no event to deliver within server timeout
-            [message_maker.make_connect_response()],
-            # one event to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'three'}),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-c', data={'spam': 'four'}),
-            ],
-        ]
-        return responses
+    assert handshake == call.request(
+        [message_maker.make_handshake_request(id=1)])
 
-    def test_multiple_subscriptions(self, message_maker, stack, tracker):
+    topics = [
+        message.pop('subscription') for message in subscriptions[0][0]
+    ]
+    assert set(topics) == set(
+        ['/topic/example-a', '/topic/example-b', '/topic/example-c']
+    )
 
-        handshake, subscribe = tracker.request.call_args_list[:2]
-        connect = tracker.request.call_args_list[2:]
+    assert connect == [
+        call([message_maker.make_connect_request(id=5)]),
+        call([message_maker.make_connect_request(id=6)]),
+        call([message_maker.make_connect_request(id=7)]),
+        call([message_maker.make_connect_request(id=8)]),
+        call([message_maker.make_connect_request(id=9)]),
+    ]
 
-        assert handshake == call.request(
-            [message_maker.make_handshake_request(id=1)])
-
-        subscriptions = [
-            message.pop('subscription') for message in subscribe[0][0]
-        ]
-        assert set(subscriptions) == set(
-            ['/topic/example-a', '/topic/example-b', '/topic/example-c']
-        )
-
-        assert connect == [
-            call([message_maker.make_connect_request(id=5)]),
-            call([message_maker.make_connect_request(id=6)]),
-            call([message_maker.make_connect_request(id=7)]),
-            call([message_maker.make_connect_request(id=8)]),
-            call([message_maker.make_connect_request(id=9)]),
-        ]
-
-        assert tracker.handle_a_and_c.call_args_list == [
-            call('/topic/example-a', {'spam': 'one'}),
-            call('/topic/example-a', {'spam': 'three'}),
-            call('/topic/example-c', {'spam': 'four'}),
-        ]
-        assert tracker.handle_a_and_b.call_args_list == [
-            call('/topic/example-a', {'spam': 'one'}),
-            call('/topic/example-b', {'spam': 'two'}),
-            call('/topic/example-a', {'spam': 'three'}),
-        ]
+    assert tracker.handle_a_and_c.call_args_list == [
+        call('/topic/example-a', {'spam': 'one'}),
+        call('/topic/example-a', {'spam': 'three'}),
+        call('/topic/example-c', {'spam': 'four'}),
+    ]
+    assert tracker.handle_a_and_b.call_args_list == [
+        call('/topic/example-a', {'spam': 'one'}),
+        call('/topic/example-b', {'spam': 'two'}),
+        call('/topic/example-a', {'spam': 'three'}),
+    ]
 
 
-class TestEventDeliveryTogetherWithSubscribe:
+def test_events_delivered_together_with_subscription_responses(
+    message_maker, run_services, tracker
+):
     """
     Test events delivered together with subscription responses
 
@@ -407,98 +409,84 @@ class TestEventDeliveryTogetherWithSubscribe:
 
     """
 
-    @pytest.fixture
-    def service(self, config, container_factory, tracker):
+    class Service:
 
-        class Service:
+        name = 'example-service'
 
-            name = 'example-service'
+        @subscribe('/topic/example-a')
+        def handle_event_a(self, channel, payload):
+            tracker.handle_event_a(channel, payload)
 
-            @subscribe('/topic/example-a')
-            def handle_event_a(self, channel, payload):
-                tracker.handle_event_a(channel, payload)
+        @subscribe('/topic/example-b')
+        def handle_event_b(self, channel, payload):
+            tracker.handle_event_b(channel, payload)
 
-            @subscribe('/topic/example-b')
-            def handle_event_b(self, channel, payload):
-                tracker.handle_event_b(channel, payload)
+    responses = [
+        # respond to handshake
+        [message_maker.make_handshake_response()],
+        # respond to subscribe and at the same time
+        # deliver events for subscribed channels
+        [
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-a'),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'one'}),
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-b'),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-b', data={'spam': 'two'}),
+        ],
+        # respond to initial connect
+        [
+            message_maker.make_connect_response(
+                advice={'reconnect': Reconnection.retry.value}),
+        ],
+        # two events to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'three'}),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-b', data={'spam': 'four'}),
+        ],
+        # no event to deliver within server timeout
+        [message_maker.make_connect_response()],
+        # one event to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'five'})
+        ],
+    ]
 
-        container = container_factory(Service, config)
+    run_services(Service, responses)
 
-        return container
+    handshake, subscriptions = tracker.request.call_args_list[:2]
+    connect = tracker.request.call_args_list[2:]
 
-    @pytest.fixture
-    def responses(self, message_maker):
-        responses = [
-            # respond to handshake
-            [message_maker.make_handshake_response()],
-            # respond to subscribe and at the same time
-            # deliver events for subscribed channels
-            [
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-a'),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'one'}),
-                message_maker.make_subscribe_response(
-                    subscription='/topic/example-b'),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-b', data={'spam': 'two'}),
-            ],
-            # respond to initial connect
-            [
-                message_maker.make_connect_response(
-                    advice={'reconnect': Reconnection.retry.value}),
-            ],
-            # two events to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'three'}),
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-b', data={'spam': 'four'}),
-            ],
-            # no event to deliver within server timeout
-            [message_maker.make_connect_response()],
-            # one event to deliver
-            [
-                message_maker.make_event_delivery_message(
-                    channel='/topic/example-a', data={'spam': 'five'})
-            ],
-        ]
-        return responses
+    assert handshake == call.request(
+        [message_maker.make_handshake_request(id=1)])
 
-    def test_events_delivered_together_with_subscription_responses(
-        self, message_maker, stack, tracker
-    ):
+    topics = [
+        message.pop('subscription') for message in subscriptions[0][0]
+    ]
+    assert set(topics) == set(['/topic/example-a', '/topic/example-b'])
 
-        handshake, subscribe = tracker.request.call_args_list[:2]
-        connect = tracker.request.call_args_list[2:]
+    assert connect == [
+        call([message_maker.make_connect_request(id=4)]),
+        call([message_maker.make_connect_request(id=5)]),
+        call([message_maker.make_connect_request(id=6)]),
+        call([message_maker.make_connect_request(id=7)]),
+        call([message_maker.make_connect_request(id=8)]),
+    ]
 
-        assert handshake == call.request(
-            [message_maker.make_handshake_request(id=1)])
-
-        subscriptions = [
-            message.pop('subscription') for message in subscribe[0][0]
-        ]
-        assert set(subscriptions) == set(
-            ['/topic/example-a', '/topic/example-b']
-        )
-
-        assert connect == [
-            call([message_maker.make_connect_request(id=4)]),
-            call([message_maker.make_connect_request(id=5)]),
-            call([message_maker.make_connect_request(id=6)]),
-            call([message_maker.make_connect_request(id=7)]),
-            call([message_maker.make_connect_request(id=8)]),
-        ]
-
-        assert tracker.handle_event_a.call_args_list == [
-            call('/topic/example-a', {'spam': 'one'}),
-            call('/topic/example-a', {'spam': 'three'}),
-            call('/topic/example-a', {'spam': 'five'}),
-        ]
-        assert tracker.handle_event_b.call_args_list == [
-            call('/topic/example-b', {'spam': 'two'}),
-            call('/topic/example-b', {'spam': 'four'}),
-        ]
+    assert tracker.handle_event_a.call_args_list == [
+        call('/topic/example-a', {'spam': 'one'}),
+        call('/topic/example-a', {'spam': 'three'}),
+        call('/topic/example-a', {'spam': 'five'}),
+    ]
+    assert tracker.handle_event_b.call_args_list == [
+        call('/topic/example-b', {'spam': 'two'}),
+        call('/topic/example-b', {'spam': 'four'}),
+    ]
 
 
 def fail_with(exception_class):

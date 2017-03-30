@@ -19,6 +19,7 @@ setup(
             "flake8==3.2.1",
             "pylint==1.6.5",
             "pytest==3.0.6",
+            "requests-mock==1.3.0",
         ]
     },
     dependency_links=[],
