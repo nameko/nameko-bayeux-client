@@ -1,7 +1,6 @@
 import json
 import socket
 
-from eventlet import sleep
 from eventlet.event import Event
 from mock import call, Mock
 from nameko.web.handlers import http
@@ -131,7 +130,7 @@ def cometd_server_port():
 
 @pytest.fixture
 def config(cometd_server_port):
-    config= {
+    config = {
         'BAYEUX': {
             'VERSION': '1.0',
             'MINIMUM_VERSION': '1.0',
