@@ -80,7 +80,6 @@ class BayeuxClient(SharedExtension, ProviderCollector):
 
         """
 
-        self._starting = False
         self._channels = {}
         self._subscriptions = set()
 
@@ -91,10 +90,8 @@ class BayeuxClient(SharedExtension, ProviderCollector):
         self.server_uri = config.get('SERVER_URI', 'http://localhost/cometd')
 
     def start(self):
-        if not self._starting:
-            self._starting = True
-            self._register_channels()
-            self.container.spawn_managed_thread(self.run)
+        self._register_channels()
+        self.container.spawn_managed_thread(self.run)
 
     def _register_channels(self):
         self.register_channel(channels.Handshake(self))
