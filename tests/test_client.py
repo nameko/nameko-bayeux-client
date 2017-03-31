@@ -613,6 +613,106 @@ def test_events_delivered_together_with_subscription_responses(
     ]
 
 
+def test_handlers_do_not_block(
+    config, container_factory, cometd_server, message_maker, responses,
+    run_services, tracker, waiter
+):
+    """ Test that entrypoints do not block each other
+    """
+
+    work_a = Event()
+    work_b = Event()
+
+    class Service:
+
+        name = 'example-service'
+
+        @subscribe('/topic/example-a')
+        def handle_event_a(self, channel, payload):
+            work_a.wait()
+            tracker.handle_event_a(channel, payload)
+
+        @subscribe('/topic/example-b')
+        def handle_event_b(self, channel, payload):
+            work_b.wait()
+            tracker.handle_event_b(channel, payload)
+
+    extra_responses = [
+        # respond to handshake
+        [message_maker.make_handshake_response()],
+        # respond to subscribe and at the same time
+        # deliver events for subscribed channels
+        [
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-a'),
+            message_maker.make_subscribe_response(
+                subscription='/topic/example-b'),
+        ],
+        # respond to initial connect
+        [
+            message_maker.make_connect_response(
+                advice={'reconnect': Reconnection.retry.value}),
+        ],
+        # two events to deliver
+        [
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-a', data={'spam': 'one'}),
+            message_maker.make_event_delivery_message(
+                channel='/topic/example-b', data={'spam': 'two'}),
+        ],
+    ]
+
+    responses.extend(extra_responses)
+
+    container = container_factory(Service, config)
+
+    cometd_server.start()
+    container.start()
+
+    try:
+
+        # both handlers are still working
+        assert (
+            tracker.handle_event_a.call_args_list ==
+            [])
+        assert (
+            tracker.handle_event_b.call_args_list ==
+            [])
+
+        # finish work of the second handler
+        work_b.send()
+        sleep(0.1)
+
+        # second handler is done
+        assert (
+            tracker.handle_event_a.call_args_list ==
+            [])
+        assert (
+            tracker.handle_event_b.call_args_list ==
+            [call('/topic/example-b', {'spam': 'two'})])
+
+        # finish work of the first handler
+        work_a.send()
+        sleep(0.1)
+
+        # first handler is done
+        assert (
+            tracker.handle_event_a.call_args_list ==
+            [call('/topic/example-a', {'spam': 'one'})])
+        assert (
+            tracker.handle_event_b.call_args_list ==
+            [call('/topic/example-b', {'spam': 'two'})])
+
+    finally:
+        if not work_a.ready():
+            work_a.send()
+        if not work_b.ready():
+            work_b.send()
+        waiter.wait()
+        container.kill()
+        cometd_server.stop()
+
+
 def fail_with(exception_class):
     def callback(request, context):
         raise exception_class('Yo!')
