@@ -1,16 +1,139 @@
+import collections
 import json
 import socket
 
 from eventlet import sleep
 from eventlet.event import Event
-from mock import call, Mock
+from mock import call, Mock, patch
 from nameko.web.handlers import http
 import pytest
 import requests
 import requests_mock
 
 
-from nameko_bayeux_client.client import Reconnection, subscribe
+from nameko_bayeux_client.client import BayeuxClient, Reconnection, subscribe
+
+
+class TestBayeuxClient:
+
+    @pytest.fixture
+    def config(self, config):
+        config['BAYEUX'] = {
+            'VERSION': '1.0',
+            'MINIMUM_VERSION': '1.0',
+            'SERVER_URI': 'http://localhost/bayeux/'
+        }
+        return config
+
+    @pytest.fixture
+    def client(self, config):
+
+        client = BayeuxClient()
+
+        client.container = collections.namedtuple('container', ('config',))
+        client.container.config = config
+
+        client.session = Mock()
+
+        client.setup()
+
+        return client
+
+    def test_setup(self, client, config):
+        assert config['BAYEUX']['VERSION'] == client.version
+        assert config['BAYEUX']['MINIMUM_VERSION'] == client.minimum_version
+        assert config['BAYEUX']['SERVER_URI'] == client.server_uri
+
+    def test_get_authorisation(self, client):
+        assert (None, None) == client.get_authorisation()
+
+    def test_send_and_receive(self, client):
+
+        messages_in = {'spam': 'egg in one'}
+        messages_out = [{'spam': 'egg out one'}, {'spam': 'egg out two'}]
+
+        response = Mock(
+            status_code=200, json=Mock(return_value=messages_out))
+        client.session.post.return_value = response
+
+        received = client.send_and_receive(messages_in)
+
+        assert messages_out == received
+
+        assert (
+            call(
+                client.server_uri,
+                timeout=client.timeout,
+                headers={'Content-Type': 'application/json'},
+                data='[{"spam": "egg in one"}]'
+            ) ==
+            client.session.post.call_args
+        )
+        assert 1 == response.raise_for_status.call_count
+
+    def test_send_and_receive_multiple_messages(self, client):
+
+        messages_in = [{'spam': 'egg in one'}, {'spam': 'egg in two'}]
+        messages_out = [{'spam': 'egg out one'}, {'spam': 'egg out two'}]
+
+        response = Mock(
+            status_code=200, json=Mock(return_value=messages_out))
+        client.session.post.return_value = response
+
+        received = client.send_and_receive(messages_in)
+
+        assert messages_out == received
+
+        assert (
+            call(
+                client.server_uri,
+                timeout=client.timeout,
+                headers={'Content-Type': 'application/json'},
+                data='[{"spam": "egg in one"}, {"spam": "egg in two"}]'
+            ) ==
+            client.session.post.call_args
+        )
+        assert 1 == response.raise_for_status.call_count
+
+    @patch.object(BayeuxClient, 'get_authorisation')
+    def test_send_and_receive_with_authorisation(
+        self, get_authorisation, client
+    ):
+
+        messages_in = [{'spam': 'egg in one'}, {'spam': 'egg in two'}]
+        messages_out = [{'spam': 'egg out one'}, {'spam': 'egg out two'}]
+
+        response = Mock(
+            status_code=200, json=Mock(return_value=messages_out))
+        client.session.post.return_value = response
+
+        get_authorisation.return_value = ('Bearer', '*********')
+
+        received = client.send_and_receive(messages_in)
+
+        assert messages_out == received
+
+        assert (
+            call(
+                client.server_uri,
+                timeout=client.timeout,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer *********',
+                },
+                data='[{"spam": "egg in one"}, {"spam": "egg in two"}]'
+            ) ==
+            client.session.post.call_args
+        )
+        assert 1 == response.raise_for_status.call_count
+
+    @patch.object(BayeuxClient, 'send_and_handle')
+    @patch.object(BayeuxClient, 'login')
+    def test_handshake_logs_in(self, login, send_and_handle, client):
+        client.reconnection = Reconnection.retry
+        client.handshake()
+        assert Reconnection.handshake == client.reconnection
+        assert call() == login.call_args
 
 
 @pytest.fixture
