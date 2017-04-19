@@ -11,8 +11,6 @@ class Channel:
     """
     Bayeux channel base class
 
-    The API consists of two main methods - compose and handle.
-
     Only long-polling connection type is supported by this implementation.
 
     """
@@ -223,8 +221,9 @@ class Event(Channel):
         """
         Register a callback to be called when handling the event
 
-        An event can have multiple callbacks. Each callback is handled
-        by a separate worker.
+        An event can have multiple callbacks. Each callback is then handled
+        by a separate Nameko worker if multiple entrypoints are subscribed
+        to the same channel.
 
         """
         self.callbacks.add(callback)
