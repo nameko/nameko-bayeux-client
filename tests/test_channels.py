@@ -19,14 +19,14 @@ class TestHandshake(TestChannel):
 
     def test_compose(self, channel, client):
         assert (
+            channel.compose() ==
             {
                 'channel': '/meta/handshake',
                 'id': client.get_next_message_id.return_value,
                 'version': client.version,
                 'minimumVersion': client.minimum_version,
                 'supportedConnectionTypes': ['long-polling'],
-            } ==
-            channel.compose()
+            }
         )
 
     def test_handle_success(self, channel, client):
@@ -41,7 +41,7 @@ class TestHandshake(TestChannel):
             'ext': {'replay': True},
         }
         channel.handle(response_message)
-        assert '5b1jdngw1jz9g9w176s5z4jha0h8' == client.client_id
+        assert client.client_id == '5b1jdngw1jz9g9w176s5z4jha0h8'
 
     @pytest.mark.parametrize('response_message', [
         {'successful': False},
@@ -60,13 +60,13 @@ class TestSubscribe(TestChannel):
 
     def test_compose(self, channel, client):
         assert (
+            channel.compose('/spam/ham') ==
             {
                 'channel': '/meta/subscribe',
                 'id': client.get_next_message_id.return_value,
                 'clientId': client.client_id,
                 'subscription': '/spam/ham',
-            } ==
-            channel.compose('/spam/ham')
+            }
         )
 
     def test_handle_success(self, channel, client):
@@ -96,13 +96,13 @@ class TestUnsubscribe(TestChannel):
 
     def test_compose(self, channel, client):
         assert (
+            channel.compose('/spam/ham') ==
             {
                 'channel': '/meta/unsubscribe',
                 'id': client.get_next_message_id.return_value,
                 'clientId': client.client_id,
                 'subscription': '/spam/ham',
-            } ==
-            channel.compose('/spam/ham')
+            }
         )
 
     def test_handle_success(self, channel, client):
@@ -132,13 +132,13 @@ class TestConnect(TestChannel):
 
     def test_compose(self, channel, client):
         assert (
+            channel.compose() ==
             {
                 'channel': '/meta/connect',
                 'id': client.get_next_message_id.return_value,
                 'clientId': client.client_id,
                 'connectionType': 'long-polling',
-            } ==
-            channel.compose()
+            }
         )
 
     def test_handle_success(self, channel, client):
@@ -163,9 +163,9 @@ class TestConnect(TestChannel):
             },
         }
         channel.handle(response_message)
-        assert constants.Reconnection.retry == client.reconnection
-        assert 111111 == client.timeout
-        assert 11 == client.interval
+        assert client.reconnection == constants.Reconnection.retry
+        assert client.timeout == 111111
+        assert client.interval == 11
 
     @pytest.mark.parametrize('response_message', [
         {'successful': False},
@@ -184,12 +184,12 @@ class TestDisconnect(TestChannel):
 
     def test_compose(self, channel, client):
         assert (
+            channel.compose() ==
             {
                 'channel': '/meta/disconnect',
                 'id': client.get_next_message_id.return_value,
                 'clientId': client.client_id,
-            } ==
-            channel.compose()
+            }
         )
 
     def test_handle_success(self, channel, client):
@@ -223,19 +223,19 @@ class TestEvent(TestChannel):
     def test_register_callback(self, client, channel):
         callback_one, callback_two = Mock(), Mock()
         channel.register_callback(callback_one)
-        assert {callback_one} == channel.callbacks
+        assert channel.callbacks == {callback_one}
         channel.register_callback(callback_two)
-        assert {callback_one, callback_two} == channel.callbacks
+        assert channel.callbacks == {callback_one, callback_two}
 
     def test_compose(self, client, channel, channel_name):
         assert (
+            channel.compose({'foo': 'bar'}) ==
             {
                 'channel': channel_name,
                 'id': client.get_next_message_id.return_value,
                 'clientId': client.client_id,
                 'data': {'foo': 'bar'},
-            } ==
-            channel.compose({'foo': 'bar'})
+            }
         )
 
     def test_handle_event_delivery(self, client, channel, channel_name):
@@ -250,8 +250,8 @@ class TestEvent(TestChannel):
         }
         channel.handle(response_message)
         assert (
-            [call({'foo': 'bar'})] ==
-            callback_one.call_args_list)
+            callback_one.call_args_list ==
+            [call({'foo': 'bar'})])
         assert (
-            [call({'foo': 'bar'})] ==
-            callback_two.call_args_list)
+            callback_two.call_args_list ==
+            [call({'foo': 'bar'})])
