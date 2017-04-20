@@ -18,16 +18,14 @@ class TestHandshake(TestChannel):
         return channels.Handshake(client)
 
     def test_compose(self, channel, client):
-        assert (
-            channel.compose() ==
-            {
-                'channel': '/meta/handshake',
-                'id': client.get_next_message_id.return_value,
-                'version': client.version,
-                'minimumVersion': client.minimum_version,
-                'supportedConnectionTypes': ['long-polling'],
-            }
-        )
+        expected_message = {
+            'channel': '/meta/handshake',
+            'id': client.get_next_message_id.return_value,
+            'version': client.version,
+            'minimumVersion': client.minimum_version,
+            'supportedConnectionTypes': ['long-polling'],
+        }
+        assert channel.compose() == expected_message
 
     def test_handle_success(self, channel, client):
         response_message = {
@@ -59,15 +57,13 @@ class TestSubscribe(TestChannel):
         return channels.Subscribe(client)
 
     def test_compose(self, channel, client):
-        assert (
-            channel.compose('/spam/ham') ==
-            {
-                'channel': '/meta/subscribe',
-                'id': client.get_next_message_id.return_value,
-                'clientId': client.client_id,
-                'subscription': '/spam/ham',
-            }
-        )
+        expected_message = {
+            'channel': '/meta/subscribe',
+            'id': client.get_next_message_id.return_value,
+            'clientId': client.client_id,
+            'subscription': '/spam/ham',
+        }
+        assert channel.compose('/spam/ham') == expected_message
 
     def test_handle_success(self, channel, client):
         response_message = {
@@ -95,15 +91,13 @@ class TestUnsubscribe(TestChannel):
         return channels.Unsubscribe(client)
 
     def test_compose(self, channel, client):
-        assert (
-            channel.compose('/spam/ham') ==
-            {
-                'channel': '/meta/unsubscribe',
-                'id': client.get_next_message_id.return_value,
-                'clientId': client.client_id,
-                'subscription': '/spam/ham',
-            }
-        )
+        expected_message = {
+            'channel': '/meta/unsubscribe',
+            'id': client.get_next_message_id.return_value,
+            'clientId': client.client_id,
+            'subscription': '/spam/ham',
+        }
+        assert channel.compose('/spam/ham') == expected_message
 
     def test_handle_success(self, channel, client):
         response_message = {
@@ -131,15 +125,13 @@ class TestConnect(TestChannel):
         return channels.Connect(client)
 
     def test_compose(self, channel, client):
-        assert (
-            channel.compose() ==
-            {
-                'channel': '/meta/connect',
-                'id': client.get_next_message_id.return_value,
-                'clientId': client.client_id,
-                'connectionType': 'long-polling',
-            }
-        )
+        expected_message = {
+            'channel': '/meta/connect',
+            'id': client.get_next_message_id.return_value,
+            'clientId': client.client_id,
+            'connectionType': 'long-polling',
+        }
+        assert channel.compose() == expected_message
 
     def test_handle_success(self, channel, client):
         response_message = {
@@ -183,14 +175,12 @@ class TestDisconnect(TestChannel):
         return channels.Disconnect(client)
 
     def test_compose(self, channel, client):
-        assert (
-            channel.compose() ==
-            {
-                'channel': '/meta/disconnect',
-                'id': client.get_next_message_id.return_value,
-                'clientId': client.client_id,
-            }
-        )
+        expected_message = {
+            'channel': '/meta/disconnect',
+            'id': client.get_next_message_id.return_value,
+            'clientId': client.client_id,
+        }
+        assert channel.compose() == expected_message
 
     def test_handle_success(self, channel, client):
         response_message = {
@@ -228,15 +218,13 @@ class TestEvent(TestChannel):
         assert channel.callbacks == {callback_one, callback_two}
 
     def test_compose(self, client, channel, channel_name):
-        assert (
-            channel.compose({'foo': 'bar'}) ==
-            {
-                'channel': channel_name,
-                'id': client.get_next_message_id.return_value,
-                'clientId': client.client_id,
-                'data': {'foo': 'bar'},
-            }
-        )
+        expected_message = {
+            'channel': channel_name,
+            'id': client.get_next_message_id.return_value,
+            'clientId': client.client_id,
+            'data': {'foo': 'bar'},
+        }
+        assert channel.compose({'foo': 'bar'}) == expected_message
 
     def test_handle_event_delivery(self, client, channel, channel_name):
         callback_one, callback_two = Mock(), Mock()
