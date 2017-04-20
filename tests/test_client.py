@@ -272,44 +272,47 @@ def waiter():
 
 
 @pytest.fixture
-def cometd_server(
+def make_cometd_server(
     container_factory, cometd_server_port, message_maker,
-    responses, tracker, waiter
+    tracker, waiter
 ):
     """ Return a container to imitating a cometd server
     """
 
-    class CometdServer(object):
+    def _make(responses):
 
-        name = "cometd"
+        class CometdServer(object):
 
-        @http('POST', "/cometd")
-        def handle(self, request):
-            tracker.request(
-                json.loads(request.get_data().decode(encoding='UTF-8')))
-            try:
-                return 200, json.dumps(responses.pop(0))
-            except IndexError:
-                waiter.send()
-                sleep(0.1)
-                return (
-                    200,
-                    json.dumps([message_maker.make_connect_response()]))
+            name = "cometd"
 
-    config = {
-        'WEB_SERVER_ADDRESS': 'localhost:{}'.format(cometd_server_port)
-    }
-    container = container_factory(CometdServer, config)
+            @http('POST', "/cometd")
+            def handle(self, request):
+                tracker.request(
+                    json.loads(request.get_data().decode(encoding='UTF-8')))
+                try:
+                    return 200, json.dumps(responses.pop(0))
+                except IndexError:
+                    waiter.send()
+                    sleep(0.1)
+                    no_events_to_deliver = [message_maker.make_connect_response()]
+                    return (200, json.dumps(no_events_to_deliver))
 
-    return container
+        config = {
+            'WEB_SERVER_ADDRESS': 'localhost:{}'.format(cometd_server_port)
+        }
+        container = container_factory(CometdServer, config)
+
+        return container
+
+    return _make
 
 
 @pytest.fixture
-def run_services(container_factory, config, cometd_server, responses, waiter):
+def run_services(container_factory, config, make_cometd_server, waiter):
     """ Returns services runner
     """
 
-    def _run(service_class, extra_responses):
+    def _run(service_class, responses):
         """
         Run testing cometd server and example service with tested entrypoints
 
@@ -318,8 +321,7 @@ def run_services(container_factory, config, cometd_server, responses, waiter):
 
         """
 
-        responses.extend(extra_responses)
-
+        cometd_server = make_cometd_server(responses)
         container = container_factory(service_class, config)
 
         cometd_server.start()
@@ -331,11 +333,6 @@ def run_services(container_factory, config, cometd_server, responses, waiter):
         cometd_server.stop()
 
     return _run
-
-
-@pytest.fixture
-def responses():
-    return []
 
 
 def test_basic_communication(message_maker, run_services, tracker):
@@ -610,7 +607,7 @@ def test_events_delivered_together_with_subscription_responses(
 
 
 def test_handlers_do_not_block(
-    config, container_factory, cometd_server, message_maker, responses,
+    config, container_factory, make_cometd_server, message_maker,
     run_services, tracker, waiter
 ):
     """ Test that entrypoints do not block each other
@@ -633,7 +630,7 @@ def test_handlers_do_not_block(
             work_b.wait()
             tracker.handle_event_b(channel, payload)
 
-    extra_responses = [
+    responses = [
         # respond to handshake
         [message_maker.make_handshake_response()],
         # respond to subscribe and at the same time
@@ -658,8 +655,7 @@ def test_handlers_do_not_block(
         ],
     ]
 
-    responses.extend(extra_responses)
-
+    cometd_server = make_cometd_server(responses)
     container = container_factory(Service, config)
 
     cometd_server.start()
@@ -707,6 +703,112 @@ def test_handlers_do_not_block(
         waiter.wait()
         container.kill()
         cometd_server.stop()
+
+
+class TestWorkerPoolLimitation:
+
+    @pytest.fixture
+    def config(self, config):
+        config['max_workers'] = 1
+        return config
+
+    def test_handlers_blocking_by_worker_pool_limit(
+        self, config, container_factory, make_cometd_server, message_maker,
+        run_services, tracker, waiter
+    ):
+        """ Test that entrypoints do not block each other
+        """
+
+        work_a = Event()
+        work_b = Event()
+
+        class Service:
+
+            name = 'example-service'
+
+            @subscribe('/topic/example-a')
+            def handle_event_a(self, channel, payload):
+                work_a.wait()
+                tracker.handle_event_a(channel, payload)
+
+            @subscribe('/topic/example-b')
+            def handle_event_b(self, channel, payload):
+                work_b.wait()
+                tracker.handle_event_b(channel, payload)
+
+        responses = [
+            # respond to handshake
+            [message_maker.make_handshake_response()],
+            # respond to subscribe and at the same time
+            # deliver events for subscribed channels
+            [
+                message_maker.make_subscribe_response(
+                    subscription='/topic/example-a'),
+                message_maker.make_subscribe_response(
+                    subscription='/topic/example-b'),
+            ],
+            # respond to initial connect
+            [
+                message_maker.make_connect_response(
+                    advice={'reconnect': Reconnection.retry.value}),
+            ],
+            # two events to deliver
+            [
+                message_maker.make_event_delivery_message(
+                    channel='/topic/example-a', data={'spam': 'one'}),
+                message_maker.make_event_delivery_message(
+                    channel='/topic/example-b', data={'spam': 'two'}),
+            ],
+        ]
+
+        cometd_server = make_cometd_server(responses)
+        container = container_factory(Service, config)
+
+        cometd_server.start()
+        container.start()
+
+        try:
+
+            # both handlers are still working
+            assert (
+                tracker.handle_event_a.call_args_list ==
+                [])
+            assert (
+                tracker.handle_event_b.call_args_list ==
+                [])
+
+            # event if the second handler is un-blocked
+            work_b.send()
+            sleep(0.1)
+
+            # it is still blocked if there is no available worker
+            assert (
+                tracker.handle_event_a.call_args_list ==
+                [])
+            assert (
+                tracker.handle_event_b.call_args_list ==
+                [])
+
+            # finish work of the first handler
+            work_a.send()
+            sleep(0.1)
+
+            # both handlers finished
+            assert (
+                tracker.handle_event_a.call_args_list ==
+                [call('/topic/example-a', {'spam': 'one'})])
+            assert (
+                tracker.handle_event_b.call_args_list ==
+                [call('/topic/example-b', {'spam': 'two'})])
+
+        finally:
+            if not work_a.ready():
+                work_a.send()
+            if not work_b.ready():
+                work_b.send()
+            waiter.wait()
+            container.kill()
+            cometd_server.stop()
 
 
 def fail_with(exception_class):
