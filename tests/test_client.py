@@ -294,7 +294,8 @@ def make_cometd_server(
                 except IndexError:
                     waiter.send()
                     sleep(0.1)
-                    no_events_to_deliver = [message_maker.make_connect_response()]
+                    no_events_to_deliver = [
+                        message_maker.make_connect_response()]
                     return (200, json.dumps(no_events_to_deliver))
 
         config = {
