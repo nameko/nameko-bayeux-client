@@ -1,10 +1,10 @@
 import collections
 import json
-import socket
 
 from eventlet import sleep
 from eventlet.event import Event
 from mock import call, Mock, patch
+from nameko.testing.utils import find_free_port
 from nameko.web.handlers import http
 import pytest
 import requests
@@ -245,11 +245,7 @@ def message_maker(config, client_id):
 
 @pytest.fixture
 def cometd_server_port():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(('127.0.0.1', 0))
-    port = sock.getsockname()[1]
-    sock.close()
-    return port
+    return find_free_port()
 
 
 @pytest.fixture
