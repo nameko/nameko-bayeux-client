@@ -30,7 +30,7 @@ Decorate entrypoint in your service class:
  
     # service.py
 
-    from nameko_bayeux.client import subscribe
+    from nameko_bayeux_client import subscribe
 
     class Service:
 
@@ -40,6 +40,7 @@ Decorate entrypoint in your service class:
         def handle_event(self, data):
             # this entrypoint is fired on incoming events
             # of '/some/topic' channel
+            print(data)
 
 
 Run your service, providing the config file:
