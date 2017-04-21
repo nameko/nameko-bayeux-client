@@ -1,3 +1,7 @@
+.. image:: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client.svg?branch=master
+    :target: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client
+
+
 Nameko Cometd Bayeux Client
 ===========================
 
