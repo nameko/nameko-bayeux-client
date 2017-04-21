@@ -1,6 +1,11 @@
 Nameko Cometd Bayeux Client
 ===========================
 
+
+.. image:: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client.svg?branch=master
+    :target: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client
+
+
 `Nameko`_ extension with a `Cometd`_ client implementing `Bayeux`_ protocol
 supporting server to client event delivery via long-polling HTTP transport.
 
