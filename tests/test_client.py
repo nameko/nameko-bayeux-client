@@ -632,13 +632,16 @@ def test_handlers_do_not_block(
             tracker.handle_event_b(channel, payload)
 
     responses = [
+        # respond to handshake
         [message_maker.make_handshake_response()],
+        # respond to subscribe
         [
             message_maker.make_subscribe_response(
                 subscription='/topic/example-a'),
             message_maker.make_subscribe_response(
                 subscription='/topic/example-b'),
         ],
+        # respond to initial connect
         [
             message_maker.make_connect_response(
                 advice={'reconnect': Reconnection.retry.value}),
