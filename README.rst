@@ -13,6 +13,16 @@ supporting server to client event delivery via long-polling HTTP transport.
 .. _Bayeux: https://docs.cometd.org/current/reference/#_bayeux
 
 
+Installation
+------------
+
+Install from `PyPI`_ with ``pip``::
+
+    pip install nameko-bayeux-client
+
+.. _PyPI: https://pypi.python.org/pypi/nameko-bayeux-client
+
+
 Usage
 -----
 
