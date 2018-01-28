@@ -170,14 +170,21 @@ class BayeuxClient(SharedExtension, ProviderCollector):
         """ Send request messages and receive response messages
         """
         try:
-            return self._send_and_receive(messages)
+            with eventlet.Timeout(self.timeout):
+                return self._send_and_receive(messages)
         except (
-            requests.ConnectionError, requests.HTTPError, requests.Timeout
+            requests.ConnectionError,
+            requests.HTTPError,
         ) as exc:
             # TODO 400 HTTPErrors maybe should not be reconnected?
             raise Reconnect(
                 'Failed to post request messages to Bayeux server'
             ) from exc
+        except (
+            requests.Timeout,
+            eventlet.Timeout,
+        ) as exc:
+            raise Reconnect('Request to Bayeux server timed out') from exc
 
     def _send_and_receive(self, messages_out):
 
