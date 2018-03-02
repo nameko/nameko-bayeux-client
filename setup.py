@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='nameko-bayeux-client',
-    version='0.0.1',
+    version='1.0.0',
     description=(
         'Nameko extension with a Cometd client implementing Bayeux protocol'
     ),
