@@ -1,7 +1,7 @@
 import collections
 import json
 
-from eventlet import sleep
+import eventlet
 from eventlet.event import Event
 from mock import call, Mock, patch
 from nameko.testing.utils import find_free_port
@@ -10,8 +10,8 @@ import pytest
 import requests
 import requests_mock
 
-
 from nameko_bayeux_client.client import BayeuxClient, Reconnection, subscribe
+from nameko_bayeux_client.exceptions import Reconnect
 
 
 class TestBayeuxClient:
@@ -126,6 +126,31 @@ class TestBayeuxClient:
             client.session.post.call_args
         )
         assert 1 == response.raise_for_status.call_count
+
+    @pytest.mark.parametrize(('exception_class,error_message'), (
+        (
+            requests.ConnectionError,
+            'Failed to post request messages to Bayeux server',
+        ),
+        (
+            requests.HTTPError,
+            'Failed to post request messages to Bayeux server',
+        ),
+        (requests.Timeout, 'Request to Bayeux server timed out'),
+        (eventlet.Timeout, 'Request to Bayeux server timed out'),
+    ))
+    def test_send_and_receive_failing(
+        self, client, exception_class, error_message
+    ):
+
+        messages_in = {'spam': 'egg in one'}
+
+        client.session.post.side_effect = exception_class()
+
+        with pytest.raises(Reconnect) as exc:
+            client.send_and_receive(messages_in)
+
+        assert str(exc.value) == error_message
 
     @patch.object(BayeuxClient, 'send_and_handle')
     @patch.object(BayeuxClient, 'login')
@@ -293,7 +318,7 @@ def make_cometd_server(
                     return 200, json.dumps(responses.pop(0))
                 except IndexError:
                     waiter.send()
-                    sleep(0.1)
+                    eventlet.sleep(0.1)
                     no_events_to_deliver = [
                         message_maker.make_connect_response()]
                     return (200, json.dumps(no_events_to_deliver))
@@ -673,7 +698,7 @@ def test_handlers_do_not_block(
 
         # finish work of the second handler
         work_b.send()
-        sleep(0.1)
+        eventlet.sleep(0.1)
 
         # second handler is done
         assert (
@@ -685,7 +710,7 @@ def test_handlers_do_not_block(
 
         # finish work of the first handler
         work_a.send()
-        sleep(0.1)
+        eventlet.sleep(0.1)
 
         # first handler is done
         assert (

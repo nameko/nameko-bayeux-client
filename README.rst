@@ -8,9 +8,13 @@ Nameko Cometd Bayeux Client
 `Nameko`_ extension with a `Cometd`_ client implementing `Bayeux`_ protocol
 supporting server to client event delivery via long-polling HTTP transport.
 
+The library is used by `Nameko Salesforce`_ which has been connected to a
+fairly busy production Salesforce account for over a year and proved robust.
+
 .. _Nameko: http://nameko.readthedocs.org
 .. _Cometd: https://docs.cometd.org/current/reference/
 .. _Bayeux: https://docs.cometd.org/current/reference/#_bayeux
+.. _Nameko Salesforce: https://github.com/Overseas-Student-Living/nameko-salesforce
 
 
 Installation
