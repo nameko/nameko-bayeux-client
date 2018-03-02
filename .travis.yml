@@ -1,4 +1,5 @@
 language: python
+
 python:
   - "3.4"
   - "3.5"
@@ -10,8 +11,8 @@ matrix:
     - python: nightly
 
 install:
-    - pip install -U pip setuptools
-    - pip install -U -e ".[dev]"
+  - pip install -U pip setuptools
+  - pip install -U -e ".[dev]"
 
 script:
   - make test
@@ -19,15 +20,11 @@ script:
 deploy:
 
   - provider: pypi
-
     on:
       tags: true
       repo: Overseas-Student-Living/nameko-bayeux-client
       condition: $TRAVIS_PYTHON_VERSION = "3.5"
-
-    distributions: "sdist bdist_wheel"
-
+    distributions: sdist bdist_wheel
     user: iky
     password:
-      secure:
-         "wuKi/py9bNikglURovrTIE4WcsSmPHW9rsA7ZnehNi6BHoDx/ZFh4P96P120L+ZvgYJbaZFzlZIfysydiCxjsSekHrArEUSdZJsdcFX6jJRcO03RYi6jr2cA5TrD0jTS5WvWCgYdPsD0oZHTCFyamuJiAx3+INjrPN0mNow0QPLgR7FqCP4Ka19XI/vlCCtysseVaP7vMy8puG3OY+hpR0k5DA7qnNrNYkOF2lPtTUx7Oh/IqmjTGSN1IqHrslRaS82/mezYGCm6YmwoGIXs5kBXqKjJ0hQevL/Ps7/rMlValxe6ei5JQG7J9aONDWenPTNWkVO0gMGrQIunaQzsycQY89ZN8ivafGpGsTOe5AkR4jR4m93rOuj1q0SFGdc2jeoIj2pgTLneRb8b6y1zEWLtnaiwRbmY7PPUINVem+hGm16qTe+BAeQzgtuVRcu8V4/JTL+jEwwwtmtuG3+Kvfs7xVcmGUDhZOCrqRQQ8gntsgCNsI1hw+1EzWlPV4e6+ixk9jXFx/LmUG73BXlmxhjCSdKNjjLaN1Qt5E4ph+xUrZJfTqIKDcDBYV6MNuEkctL1bCXyf6sVsch3cfpwStGwygzSm89+TmVEWW7WwdmUgxs+s5E8r8MiWGRzQ2EGtGjMXuPU/JaEN+B4KT0k0zlAhrpjUnff6YMFO/fCmmA="
+      secure: sSITgjEntic6Q9B2UZb9z9N4E8f82N+ntctEsB60BSQGARNy4ciDg1DP+Muyx7LBrV+1Q8TIYXAlPUXgvwr74afWhPba7cCTonQziEMAJ8rsz/zR8PnP8iAs+LimG1z4WEr3DqppaKZsAgng7ZXu9QBDbmRJIWEi6zqcMeKZk1QXu9FC6Db2AWTaeTUaWomnhxqgPI5v0bRe/5Idz6DQavOpUikI8pUOgDCXwdvnzwr1q91rRkf2fNmbJod6sedBL+uDFwvkhjwPIEZAwcv5v7AsCOpAb0wSmfq1VQow5T/bMT9bBbIrnlMxNb5h9lYoDH76GpLA1EIv5dnSYOAYjl5k78D+4yqxqeMX6rbrM6C3lUMfNrN8BYF4SJDYP/FW4E51uu3PBr79L4gvLd/u4OLv/D+KvkvC2ZtakHzPMWND4QpjVXoVHIFqTUFUqSpntdRpcZn0qK2FupVx+u/7MEgm4kalSMEDqNTzdyIFOX1LSbgYzTpexY6TbqrbFagJmOPGyvn+0ewT9aK17TSDinE6AYD1rRa3cZFTLxWcmCeqeYkO+Y3p4BcTwNLX+TssvAzveGNL3eGAMaiD70lpsLHT2CzkZHQJ9tsxM8bW/zTz4P+Aq8cqJk//AvI09GA+1aSdudT0zr7g9u9oMEqUXK7gX6V+trIRgRLzp9KGpzg=
