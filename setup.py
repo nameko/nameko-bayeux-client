@@ -8,7 +8,7 @@ setup(
         'Nameko extension with a Cometd client implementing Bayeux protocol'
     ),
     author='Student.com',
-    url='http://github.com/iky/nameko-bayeux-client',
+    url='http://github.com/nameko/nameko-bayeux-client',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
         "nameko>=2.5.1",
