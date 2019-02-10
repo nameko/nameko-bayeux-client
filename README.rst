@@ -1,5 +1,5 @@
-.. image:: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client.svg?branch=master
-    :target: https://travis-ci.org/Overseas-Student-Living/nameko-bayeux-client
+.. image:: https://travis-ci.org/nameko/nameko-bayeux-client.svg?branch=master
+    :target: https://travis-ci.org/nameko/nameko-bayeux-client
 
 
 Nameko Cometd Bayeux Client
@@ -14,7 +14,7 @@ fairly busy production Salesforce account for over a year and proved robust.
 .. _Nameko: http://nameko.readthedocs.org
 .. _Cometd: https://docs.cometd.org/current/reference/
 .. _Bayeux: https://docs.cometd.org/current/reference/#_bayeux
-.. _Nameko Salesforce: https://github.com/Overseas-Student-Living/nameko-salesforce
+.. _Nameko Salesforce: https://github.com/nameko/nameko-salesforce
 
 
 Installation
