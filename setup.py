@@ -11,7 +11,7 @@ setup(
     url='http://github.com/nameko/nameko-bayeux-client',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "nameko>=2.5.4",
+        "nameko>=2.8.5",
     ],
     extras_require={
         'dev': [
