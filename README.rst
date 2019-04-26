@@ -45,7 +45,7 @@ Add Bayeux client configuration to your Nameko config file:
 Decorate entrypoint in your service class:
 
 .. code-block:: python
- 
+
     # service.py
 
     from nameko_bayeux_client import subscribe

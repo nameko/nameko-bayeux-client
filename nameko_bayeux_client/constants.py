@@ -9,7 +9,7 @@ class Reconnection(Enum):
 
     """
 
-    retry = 'retry'
+    retry = "retry"
     """
     Reconnect with a connection request
 
@@ -19,7 +19,7 @@ class Reconnection(Enum):
 
     """
 
-    handshake = 'handshake'
+    handshake = "handshake"
     """
     Reconnect with a handshake request
 
@@ -29,7 +29,7 @@ class Reconnection(Enum):
 
     """
 
-    none = 'none'
+    none = "none"
     """
     Do NOT reconnect
 

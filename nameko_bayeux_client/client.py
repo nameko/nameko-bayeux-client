@@ -4,12 +4,11 @@ import logging
 
 import eventlet
 import requests
-
 from nameko.extensions import Entrypoint, ProviderCollector, SharedExtension
 
 from nameko_bayeux_client import channels
-from nameko_bayeux_client.exceptions import Reconnect
 from nameko_bayeux_client.constants import Reconnection
+from nameko_bayeux_client.exceptions import Reconnect
 
 
 logger = logging.getLogger(__name__)
@@ -84,10 +83,10 @@ class BayeuxClient(SharedExtension, ProviderCollector):
         self._subscriptions = set()
 
     def setup(self):
-        config = self.container.config.get('BAYEUX', {})
-        self.version = config.get('VERSION', '1.0')
-        self.minimum_version = config.get('MINIMUM_VERSION', '1.0')
-        self.server_uri = config.get('SERVER_URI', 'http://localhost/cometd')
+        config = self.container.config.get("BAYEUX", {})
+        self.version = config.get("VERSION", "1.0")
+        self.minimum_version = config.get("MINIMUM_VERSION", "1.0")
+        self.server_uri = config.get("SERVER_URI", "http://localhost/cometd")
 
     def start(self):
         self._register_channels()
@@ -100,8 +99,7 @@ class BayeuxClient(SharedExtension, ProviderCollector):
         self.register_channel(channels.Subscribe(self))
         self.register_channel(channels.Unsubscribe(self))
         for provider in self._providers:
-            self.register_event_handler(
-                provider.channel_name, provider.handle_message)
+            self.register_event_handler(provider.channel_name, provider.handle_message)
 
     def register_channel(self, channel):
         self._channels[channel.name] = channel
@@ -126,8 +124,7 @@ class BayeuxClient(SharedExtension, ProviderCollector):
                     self.subscribe()
                 self.connect()
             except Reconnect:
-                logger.warning(
-                    'Need to reconnect to Bayeux server ...', exc_info=True)
+                logger.warning("Need to reconnect to Bayeux server ...", exc_info=True)
             eventlet.sleep(self.interval * 10 ** -3)  # from milliseconds
 
     def handshake(self):
@@ -149,16 +146,18 @@ class BayeuxClient(SharedExtension, ProviderCollector):
     def subscribe(self):
         """ Send all subscription messages and process response messages
         """
-        self.send_and_handle([
-            channels.Subscribe(self).compose(channel)
-            for channel in self._subscriptions
-        ])
+        self.send_and_handle(
+            [
+                channels.Subscribe(self).compose(channel)
+                for channel in self._subscriptions
+            ]
+        )
 
     def handle(self, messages):
         """ Handle incoming messages
         """
         for message in messages:
-            channel = self._channels[message['channel']]
+            channel = self._channels[message["channel"]]
             channel.handle(message)
 
     def send_and_handle(self, messages):
@@ -172,43 +171,34 @@ class BayeuxClient(SharedExtension, ProviderCollector):
         try:
             with eventlet.Timeout(self.timeout):
                 return self._send_and_receive(messages)
-        except (
-            requests.ConnectionError,
-            requests.HTTPError,
-        ) as exc:
+        except (requests.ConnectionError, requests.HTTPError) as exc:
             # TODO 400 HTTPErrors maybe should not be reconnected?
-            raise Reconnect(
-                'Failed to post request messages to Bayeux server'
-            ) from exc
-        except (
-            requests.Timeout,
-            eventlet.Timeout,
-        ) as exc:
-            raise Reconnect('Request to Bayeux server timed out') from exc
+            raise Reconnect("Failed to post request messages to Bayeux server") from exc
+        except (requests.Timeout, eventlet.Timeout) as exc:
+            raise Reconnect("Request to Bayeux server timed out") from exc
 
     def _send_and_receive(self, messages_out):
 
         if not isinstance(messages_out, collections.Sequence):
             messages_out = [messages_out]
 
-        headers = {
-            'Content-Type': 'application/json',
-        }
+        headers = {"Content-Type": "application/json"}
         auth_schema, auth_param = self.get_authorisation()
         if auth_schema and auth_param:
-            headers['Authorization'] = '{} {}'.format(auth_schema, auth_param)
+            headers["Authorization"] = "{} {}".format(auth_schema, auth_param)
 
-        logger.debug('Sending Bayeux messages %s', messages_out)
+        logger.debug("Sending Bayeux messages %s", messages_out)
 
         response = self.session.post(
             self.server_uri,
             timeout=self.timeout,
             headers=headers,
-            data=json.dumps(messages_out))
+            data=json.dumps(messages_out),
+        )
         response.raise_for_status()
         messages_in = response.json()
 
-        logger.debug('Received Bayeux messages %s', messages_in)
+        logger.debug("Received Bayeux messages %s", messages_in)
 
         return messages_in
 
@@ -252,8 +242,12 @@ class BayeuxMessageHandler(Entrypoint):
         kwargs = {}
         context_data = {}
         self.container.spawn_worker(
-            self, args, kwargs, context_data=context_data,
-            handle_result=self.handle_result)
+            self,
+            args,
+            kwargs,
+            context_data=context_data,
+            handle_result=self.handle_result,
+        )
 
     def handle_result(self, message, worker_ctx, result=None, exc_info=None):
         return result, exc_info

@@ -1,7 +1,7 @@
 import logging
 
-from nameko_bayeux_client.exceptions import BayeuxError, Reconnect
 from nameko_bayeux_client.constants import Reconnection
+from nameko_bayeux_client.exceptions import BayeuxError, Reconnect
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class Handshake(Channel):
 
     """
 
-    name = '/meta/handshake'
+    name = "/meta/handshake"
 
     def compose(self):
         """ Compose a handshake request message """
@@ -58,7 +58,7 @@ class Handshake(Channel):
             channel=self.name,
             version=self.client.version,
             minimumVersion=self.client.minimum_version,
-            supportedConnectionTypes=['long-polling'],
+            supportedConnectionTypes=["long-polling"],
         )
 
     def handle(self, message):
@@ -70,13 +70,13 @@ class Handshake(Channel):
         level.
 
         """
-        if not message['successful']:
+        if not message["successful"]:
             raise BayeuxError(
-                'Unsuccessful handshake response: {}'
-                .format(message.get('error')))
+                "Unsuccessful handshake response: {}".format(message.get("error"))
+            )
         else:
-            logger.info('Hand shook client ID %s', message['clientId'])
-            self.client.client_id = message['clientId']
+            logger.info("Hand shook client ID %s", message["clientId"])
+            self.client.client_id = message["clientId"]
 
 
 class Connect(Channel):
@@ -90,11 +90,11 @@ class Connect(Channel):
 
     """
 
-    name = '/meta/connect'
+    name = "/meta/connect"
 
     def compose(self):
         """ Compose a connection request message """
-        return super().compose(connectionType='long-polling')
+        return super().compose(connectionType="long-polling")
 
     def handle(self, message):
         """ Handle connection response message """
@@ -103,27 +103,27 @@ class Connect(Channel):
         self._set_interval(message)
         self._set_reconnect(message)
 
-        if not message['successful']:
+        if not message["successful"]:
             raise Reconnect(
-                'Unsuccessful connect response: {}'
-                .format(message.get('error')))
+                "Unsuccessful connect response: {}".format(message.get("error"))
+            )
 
     def _set_timeout(self, message):
-        timeout = message.get('advice', {}).get('timeout')
+        timeout = message.get("advice", {}).get("timeout")
         if timeout is not None:
-            logger.info('Taking advice timeout=%s', timeout)
+            logger.info("Taking advice timeout=%s", timeout)
             self.client.timeout = timeout
 
     def _set_interval(self, message):
-        interval = message.get('advice', {}).get('interval')
+        interval = message.get("advice", {}).get("interval")
         if interval is not None:
-            logger.info('Taking advice interval=%s', interval)
+            logger.info("Taking advice interval=%s", interval)
             self.client.interval = interval
 
     def _set_reconnect(self, message):
-        reconnect = message.get('advice', {}).get('reconnect')
+        reconnect = message.get("advice", {}).get("reconnect")
         if reconnect is not None:
-            logger.info('Taking advice reconnect=%s', reconnect)
+            logger.info("Taking advice reconnect=%s", reconnect)
             self.client.reconnection = Reconnection(reconnect)
 
 
@@ -137,14 +137,14 @@ class Disconnect(Channel):
 
     """
 
-    name = '/meta/disconnect'
+    name = "/meta/disconnect"
 
     def handle(self, message):
         """ Handle disconnect response message """
-        if not message['successful']:
+        if not message["successful"]:
             raise BayeuxError(
-                'Unsuccessful disconnect response: {}'
-                .format(message.get('error')))
+                "Unsuccessful disconnect response: {}".format(message.get("error"))
+            )
 
 
 class Subscribe(Channel):
@@ -160,7 +160,7 @@ class Subscribe(Channel):
 
     """
 
-    name = '/meta/subscribe'
+    name = "/meta/subscribe"
 
     def compose(self, channel_name):
         """ Compose a subscribe request message """
@@ -168,10 +168,10 @@ class Subscribe(Channel):
 
     def handle(self, message):
         """ Handle subscribe response message """
-        if not message['successful']:
+        if not message["successful"]:
             raise BayeuxError(
-                'Unsuccessful subscribe response: {}'
-                .format(message.get('error')))
+                "Unsuccessful subscribe response: {}".format(message.get("error"))
+            )
 
 
 class Unsubscribe(Channel):
@@ -188,7 +188,7 @@ class Unsubscribe(Channel):
 
     """
 
-    name = '/meta/unsubscribe'
+    name = "/meta/unsubscribe"
 
     def compose(self, channel_name):
         """ Compose an unsubscribe request message """
@@ -196,10 +196,10 @@ class Unsubscribe(Channel):
 
     def handle(self, message):
         """ Handle unsubscribe response message """
-        if not message['successful']:
+        if not message["successful"]:
             raise BayeuxError(
-                'Unsuccessful unsubscribe response: {}'
-                .format(message.get('error')))
+                "Unsuccessful unsubscribe response: {}".format(message.get("error"))
+            )
 
 
 class Event(Channel):
@@ -235,4 +235,4 @@ class Event(Channel):
     def handle(self, message):
         """ Handle delivered event message """
         for callback in self.callbacks:
-            callback(message['data'])
+            callback(message["data"])
