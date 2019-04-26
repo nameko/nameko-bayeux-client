@@ -11,15 +11,15 @@ setup(
     url='http://github.com/nameko/nameko-bayeux-client',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        "nameko>=2.5.1",
+        "nameko>=2.8.5",
     ],
     extras_require={
         'dev': [
-            "coverage==4.3.4",
-            "flake8==3.2.1",
-            "pylint==1.8.2",
-            "pytest==3.0.6",
-            "requests-mock==1.3.0",
+            "coverage",
+            "flake8",
+            "pylint",
+            "pytest",
+            "requests-mock",
         ]
     },
     dependency_links=[],
@@ -29,9 +29,9 @@ setup(
         "Programming Language :: Python",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: POSIX",
-        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
         "Topic :: Internet",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Intended Audience :: Developers",
