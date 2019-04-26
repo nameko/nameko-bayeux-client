@@ -1,10 +1,7 @@
-test: flake8 pylint pytest
+test: static pytest
 
-flake8:
-	flake8 nameko_bayeux_client tests
-
-pylint:
-	pylint nameko_bayeux_client -E
+static:
+	pre-commit run --all-files
 
 pytest:
 	coverage run --concurrency=eventlet --source nameko_bayeux_client --branch -m pytest tests
