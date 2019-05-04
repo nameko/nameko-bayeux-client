@@ -225,6 +225,7 @@ class BayeuxClient(SharedExtension, ProviderCollector):
 
 
 class BayeuxMessageHandler(Entrypoint):
+    # pylint: disable=unused-argument
 
     client = BayeuxClient()
 
